@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.1">
+  <title>Rider App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    .half { height: 90vh; }
+    .map-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+    .page { display: none; }
+    .active { display: block; }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(4px);
+      z-index: 50;
+    }
+    .delivered-btn {
+      background: linear-gradient(to right, #ec4899, #f43f5e);
+    }
+    .delivered-btn-disabled {
+      background: #f3f4f6;
+      color: #9ca3af;
+    }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -300px;
+      width: 230px;
+      height: 100%;
+      background: white;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      z-index: 100;
+      transition: left 0.3s ease;
+      overflow-y: auto;
+    }
+    .sidebar.open {
+      left: 0;
+    }
+    .sidebar-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .sidebar-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .map-btn {
+      position: absolute;
+      width: 66px;
+      height: 66px;
+      background: white;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transform: scale(0.7);
+      transform-origin: center;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .map-btn-menu {
+      top: 24px;
+      left: 10px;
+    }
+    .map-btn-refresh {
+      top: 90px;
+      left: 10px;
+    }
+    .map-btn-headset {
+      top: 24px;
+      right: 10px;
+    }
+    .map-btn-chat {
+      top: 90px;
+      right: 10px;
+    }
+    .map-btn-target {
+      bottom: 12px;
+      right: 10px;
+    }
+    .map-btn-navigate {
+      position: absolute;
+      bottom: 24px;
+      left: 10px;
+      background: #C81067;
+      color: white;
+      font-weight: 600;
+      font-size: 24px;
+      padding: 12px 16px;
+      border-radius: 9999px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transform: scale(0.7);
+      transform-origin: left bottom;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .map-status-btn {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.7);
+      background: white;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      padding: 20px 10px;
+      min-width: 0.1px;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .status-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 9999px;
+      background: #008000;
+      display: inline-block;
+    }
+    .rotate {
+      animation: rotate 1s linear infinite;
+    }
+    @keyframes rotate {
+      from { transform: rotate(0deg) scale(0.7); }
+      to { transform: rotate(360deg) scale(0.7); }
+    }
+    .chat-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+    }
+    .chat-container.active {
+      display: flex;
+    }
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .chat-messages {
+      flex: 1;
+      padding: 8px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .message-received {
+      align-self: flex-start;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 8px 12px;
+      max-width: 80%;
+    }
+    .message-sent {
+      align-self: flex-end;
+      background: #fce7f3;
+      border-radius: 16px;
+      padding: 8px 12px;
+      max-width: 90%;
+    }
+    .chat-input-container {
+      display: flex;
+      padding: 8px 12px;
+      gap: 4px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .chat-input {
+      flex: 1;
+      border: 1px solid #e5e7eb;
+      border-radius: 24px;
+      padding: 6px 16px;
+      outline: none;
+    }
+    .quick-replies {
+      display: flex;
+      padding: 0 14px 6px;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .quick-reply {
+      flex-shrink: 0;
+      border: 1px solid #C81067;
+      border-radius: 9999px;
+      padding: 8px 16px;
+      color: #C81067;
+      background: white;
+      cursor: pointer;
+    }
+    .proof-container {
+      margin-top: 16px;
+      border: 0px dashed #d1d5db;
+      border-radius: 8px;
+      padding: 1px;
+      text-align: left;
+    }
+    .proof-image {
+      max-width: 100%;
+      max-height: 200px;
+      margin-top: 8px;
+      display: none;
+    }
+    .profile-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 3rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .profile-back-btn {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #C81067;
+      font-size: 1.5rem;
+    }
+    .wallet-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 3.5rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .wallet-back-btn {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #C81067;
+      font-size: 1.5rem;
+    }
+    .inbox-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      height: 3rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .inbox-back-btn {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #C81067;
+      font-size: 1.5rem;
+    }
+    .inbox-tabs {
+      display: flex;
+      border-bottom: 1px solid #e5e7eb;
+      overflow-x: auto;
+    }
+    .inbox-tab {
+      flex-shrink: 0;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #374151;
+    }
+    .inbox-tab.active {
+      color: #000;
+      border-bottom: 2px solid #C81067;
+    }
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 8px;
+      background: #eaeaea;
+      border-radius: 9999px;
+      outline: none;
+      margin: 0;
+      padding: 0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      cursor: pointer;
+      margin-top: -8px;
+      position: relative;
+      z-index: 10;
+    }
+    input[type="range"]::-webkit-slider-thumb:before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+      background: transparent;
+      z-index: 10;
+    }
+    .items-toggle {
+      color: #C81067;
+      cursor: pointer;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .items-count {
+      color: #C81067;
+      font-weight: bold;
+    }
+    .ready-badge {
+      display: inline-block;
+      background-color: #10B981;
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+    .call-restaurant {
+      color: #C81067;
+      font-size: 1.2rem;
+      margin-left: 10px;
+    }
+    .page3-container {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .page3-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .page3-customer {
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .page3-phone {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 1px solid #C81067;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #C81067;
+    }
+    .page3-address {
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .page3-order-info {
+      margin-bottom: 16px;
+    }
+    .page3-order-code {
+      font-weight: bold;
+      font-size: 14px;
+      margin: 8px 0;
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .page3-restaurant {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .page3-items-toggle {
+      display: flex;
+      justify-content: flex-end;
+      color: #C81067;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .page3-payment {
+      font-weight: sm;
+      margin-bottom: 16px;
+    }
+    .page3-amount {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .page3-proof {
+      margin-top: 16px;
+    }
+    .page3-proof-button {
+      border: 1px solid #C81067;
+      color: #C81067;
+      border-radius: 20px;
+      padding: 10px;
+      display: inline-flex;
+      align-items: center;
+      width: 100%;
+      justify-content: center;
+    }
+    .page3-proof-button i {
+      margin-right: 8px;
+    }
+    .page2-overlay {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(1px);
+    }
+    .map-edit-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 300;
+      padding: 20px;
+    }
+    .map-edit-container.active {
+      display: block;
+    }
+    .map-edit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .map-edit-inputs {
+      margin-bottom: 20px;
+    }
+    .map-edit-input {
+      margin-bottom: 10px;
+    }
+    .map-edit-input label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .map-edit-input input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .map-edit-buttons {
+      display: flex;
+      justify-content: space-between;
+    }
+    .map-edit-buttons button {
+      padding: 10px 20px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .map-edit-cancel {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .map-edit-save {
+      background: #C81067;
+      color: white;
+    }
+    .full-screen-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 150;
+      overflow-y: auto;
+      display: none;
+    }
+    .full-screen-page.active {
+      display: block;
+    }
+    .map-edit-option {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .map-edit-option button {
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-align: left;
+    }
+    .pin-options {
+      margin-top: 20px;
+    }
+    .order-code-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      display: none;
+    }
+    .order-code-modal.active {
+      display: flex;
+    }
+    .order-code-box {
+      background: #C81067;
+      padding: 250px 100px;
+      border-radius: 2px;
+      text-align: center;
+      max-width: 90%;
+      position: relative;
+    }
+    .order-code-text {
+      color: white;
+      font-size: 50px;
+      font-weight: bold;
+      margin: 8px;
+    }
+    .status-page-rider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .status-page-rider img {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+    }
+    .status-page-rider-info {
+      text-align: left;
+    }
+    .close-modal-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 30px;
+      height: 30px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #C81067;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .help-center-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+    }
+    .help-center-page.active {
+      display: flex;
+    }
+    .help-center-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .help-center-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .help-item {
+      padding: 15px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .help-item-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .help-item-desc {
+      color: #666;
+    }
+    .edit-tax-btn {
+      color: #C81067;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .payment-amount-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .rider-session-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+    }
+    .rider-session-page.active {
+      display: flex;
+    }
+    .rider-session-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .rider-session-content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .status-line {
+      display: flex;
+      align-items: center;
+      margin: 15px 0;
+    }
+    .status-line:before {
+      content: "";
+      display: none;
+    }
+    .status-line.clock:before {
+      background-color: #6B7280;
+    }
+    .status-line.confirm:before {
+      background-color: #C81067;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+    }
+    .toggle-switch input { display:none; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    .toggle-switch input:checked + .slider {
+      background-color: #EC4899;
+    }
+    .toggle-switch input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+    .item-input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .item-input-row input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .item-input-row button {
+      background: #C81067;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    .add-item-btn {
+      background: #10B981;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    .rider-session-menu-btn {
+      position: absolute;
+      right: 20px;
+      top: 20px;
+      background: white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #C81067;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .checkmark-circle {
+      width: 24px;
+      height: 24px;
+      background: #10B981;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+    .order-code-white {
+      color: white;
+    }
+    .editable-field {
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .editable-field:hover {
+      background-color: #f3f4f6;
+    }
+    .editable-input {
+      border: 1px solid #C81067;
+      border-radius: 4px;
+      padding: 4px;
+      width: 100%;
+    }
+    .checkmark-gray {
+      width: 24px;
+      height: 24px;
+      background: #e5e7eb;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans" oncontextmenu="return false;">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+    <h1 class="text-3xl font-extrabold leading-none text-black flex items-center gap-2">
+      <span id="sidebarRiderName">Nadeem Ali</span>
+      <i class="fas fa-medal text-black text-3xl"></i>
+      <span class="text-3xl font-extrabold" id="sidebarRiderBatch">5</span>
+    </h1>
+  </div>
+
+  <nav class="divide-y divide-gray-200">
+    <ul class="px-6 py-3 space-y-3">
+      <li>
+        <a href="#" onclick="showFullScreen('profilePage')" class="flex items-center gap-4 text-lg font-semibold text-black">
+          <i class="fas fa-user text-2xl"></i>
+          My profile
+        </a>
+      </li>
+      <li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="far fa-calendar-alt text-2xl"></i>
+      Schedule
+      </a>
+      </li>
+      <li>
+      <a href="#" onclick="showFullScreen('riderSessionPage')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="far fa-calendar-check text-2xl"></i>
+      My Session
+      </a>
+      </li>
+      <li>
+        <a href="#" onclick="showFullScreen('inboxPage')" class="flex items-center gap-4 text-lg font-semibold text-black">
+          <i class="far fa-envelope text-2xl"></i>
+          Inbox
+        </a>
+      </li>
+      <li>
+        <a href="#" onclick="showFullScreen('walletPage')" class="flex items-center gap-4 text-lg font-semibold text-black">
+          <i class="fas fa-wallet text-2xl"></i>
+          Wallet
+        </a>
+      </li>
+      <li>
+        <a href="#" onclick="showFullScreen('orderHistory')" class="flex items-center gap-4 text-lg font-semibold text-black">
+          <i class="fas fa-history text-2xl"></i>
+          Edit Order
+        </a>
+      </li>
+    </ul>
+
+    <ul class="px-6 py-3 space-y-3">
+      <li>
+        <a href="#" onclick="showMapEdit()" class="flex items-center gap-4 text-lg font-semibold text-black">
+          <i class="fas fa-map-marked-alt text-2xl"></i>
+          Edit Map img
+        </a>
+      </li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="fas fa-money-bill-wave text-2xl"></i>
+      Payments
+      </a>
+      </li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="fas fa-id-card text-2xl"></i>
+      Oppoturnities
+      </a>
+      </li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="fas fa-chart-line text-2xl"></i>
+      Activity insights
+      </a>
+      </li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="fas fa-coins text-2xl"></i>
+      Rewards
+      </a>
+      </li>
+      <a href="#" onclick="showFullScreen('nill')" class="flex items-center gap-4 text-lg font-semibold text-black">
+      <i class="fas fa-external-link-alt text-2xl"></i>
+      Setting
+      </a>
+      <hr class="border-t border-gray-300 my-4" />
+      </li>
+      <a href="#" onclick="logout()" class="flex items-center gap-4 text-lg font-semibold text-pink-600">
+      <i class="fas fa-sign-out-alt text-2xl"></i>
+      Logout
+      </a>
+      </li>
+    </ul>
+  </nav>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- Chat Container -->
+<div class="chat-container" id="chatContainer">
+  <div class="chat-header">
+    <button onclick="closeChat()" class="text-pink-600">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <h2 class="font-bold" id="chatCustomerName">raza hassan</h2>
+    <button class="text-gray-400">
+      <i class="fas fa-language"></i>
+    </button>
+  </div>
+  
+  <div class="chat-messages" id="chatMessages">
+    <div class="message-received" id="chatOrderCode">gpkb-2528-f7ix</div>
+  </div>
+  
+  <div class="quick-replies">
+    <button class="quick-reply" onclick="sendQuickReply('On my way')">On my way</button>
+    <button class="quick-reply" onclick="sendQuickReply('I\'m here')">I'm here</button>
+    <button class="quick-reply" onclick="sendQuickReply('Can\'t reach you')">Can't reach you</button>
+    <button class="quick-reply" onclick="sendQuickReply('I can\'t find your address')">Can't find address</button>
+  </div>
+  
+  <div class="chat-input-container">
+    <button class="text-pink-600">
+      <i class="fas fa-camera"></i>
+    </button>
+    <input type="text" class="chat-input" id="chatInput" placeholder="Write a message..." 
+           onkeydown="if(event.key === 'Enter') sendChatMessage()">
+    <button class="text-pink-600" onclick="sendChatMessage()">
+      <i class="fas fa-paper-plane"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Help Center Page -->
+<div class="help-center-page" id="helpCenterPage">
+  <div class="help-center-header">
+    <button onclick="closeHelpCenter()" class="text-pink-600">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <h2 class="font-bold">Help Center</h2>
+    <div class="w-6"></div> <!-- Spacer for alignment -->
+  </div>
+  
+  <div class="help-center-content">
+    <h3 class="text-pink-600 font-bold text-xl mb-4">How can we help?</h3>
+
+    <!-- Option List -->
+    <div class="space-y-2">
+      
+      <!-- Item 1 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-bag-shopping text-gray-600"></i>
+          <span class="font-medium">Live order mein madad</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+
+      <!-- Item 2 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-circle-info text-blue-500"></i>
+          <span class="font-medium">Rider Support</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+
+      <!-- Item 3 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="far fa-user text-gray-600"></i>
+          <span class="font-medium">Pause Request</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+
+      <!-- Item 4 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="far fa-lightbulb text-gray-600"></i>
+          <span class="font-medium">App</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+
+      <!-- Item 5 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="fas fa-bullhorn text-gray-600"></i>
+          <span class="font-medium">Session Issues</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+
+      <!-- Item 6 -->
+      <div class="flex items-center justify-between py-3 border-b cursor-pointer">
+        <div class="flex items-center space-x-3">
+          <i class="far fa-envelope text-gray-600"></i>
+          <span class="font-medium">Support Inbox</span>
+        </div>
+        <i class="fas fa-chevron-right text-pink-600"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rider Session Page -->
+<div class="rider-session-page" id="riderSessionPage">
+  <div class="rider-session-header">
+    <button onclick="hideFullScreen('riderSessionPage')" class="text-pink-600">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <h2 class="font-bold">Rider Session</h2>
+    <div></div>
+  </div>
+  
+  <div class="rider-session-content">
+    <!-- Header -->
+    <div class="flex items-center space-x-4">
+      <div class="relative">
+        <img id="sessionProfilePic" src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Leopard_icon.svg/120px-Leopard_icon.svg.png" class="w-16 h-16 rounded-full object-cover">
+      </div>
+      <div>
+        <h1 id="sessionDisplayName" class="text-xl font-bold leading-tight">Aqib Ahmed Ansari</h1>
+        <span id="sessionDisplayStatus" class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">Online</span>
+      </div>
+    </div>
+
+    <!-- Batch and Rate -->
+    <div class="flex justify-start mt-4 text-gray-700 space-x-8">
+      <div class="text-center">
+        <div id="sessionDisplayBatch" class="text-lg font-bold">3</div>
+        <div class="text-sm">Batch</div>
+      </div>
+      <div class="text-center">
+        <div id="sessionDisplayRate" class="text-lg font-bold">13%</div>
+        <div class="text-sm">Acceptance Rate</div>
+      </div>
+    </div>
+
+    <!-- Current trip -->
+    <h2 class="mt-6 font-bold">Current trip</h2>
+    <div class="bg-white rounded p-4 mt-2 border">
+      <div id="sessionDisplayTripName" class="font-semibold">Shahrukh Waseem</div>
+      <div class="text-gray-600">
+        <span id="sessionDisplayTripId" class="">#8119 • ghf1-2529-wfy0</span><br>
+        <span id="sessionDisplayCity" class="">Karachi</span> 
+        <span id="sessionDisplayTime" class="">23:05</span>
+      </div>
+      <div class="mt-2">
+        <span id="sessionDisplayAmount" class="bg-gray-100 px-3 py-1 rounded text-gray-700 text-sm">Collect 2,747 PKR</span>
+      </div>
+    </div>
+
+    <!-- Session -->
+    <h2 class="mt-6 font-bold">Ongoing session</h2>
+    <div class="bg-gray-100 rounded p-4 mt-2">
+      <div class="text-gray-700 text-sm">Until <span id="sessionDisplaySession" class="">4:00 AM</span></div>
+      <div class="text-gray-500 text-sm">
+        <span id="sessionDisplayLocation" class="">Pechs</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Map Upload -->
+<div class="half relative bg-blue-200">
+  <!-- Map Buttons -->
+  <button class="map-btn map-btn-menu" onclick="toggleSidebar()">
+    <span class="flex flex-col justify-between h-6">
+      <span class="block w-6 h-[3px] bg-pink-500 rounded"></span>
+      <span class="block w-6 h-[3px] bg-pink-500 rounded"></span>
+      <span class="block w-6 h-[3px] bg-pink-500 rounded"></span>
+    </span>
+  </button>
+  
+  <button class="map-btn map-btn-refresh" id="refreshBtn" onclick="rotateRefresh()">
+    <i class="fas fa-sync-alt text-pink-500 text-3xl"></i>
+  </button>
+  
+  <button class="map-status-btn" onclick="showFullScreen('riderSessionPage')">
+    <span class="font-bold text-2xl select-none ml-3">Online</span>
+    <span class="status-indicator ml-3"></span>
+  </button>
+  
+  <button class="map-btn map-btn-headset" onclick="openHelpCenter()">
+    <i class="fas fa-headset text-pink-500 text-3xl"></i>
+  </button>
+  
+  <button class="map-btn map-btn-chat" onclick="openChat()">
+    <i class="fas fa-comment-alt text-pink-500 text-3xl"></i>
+  </button>
+  
+  <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" class="map-btn-navigate">
+    <i class="fas fa-share mr-1"></i>
+    <span>Navigate</span>
+  </a>
+  
+  <button class="map-btn map-btn-target" id="targetBtn" onclick="toggleZoom()">
+    <i class="fas fa-crosshairs text-pink-500 text-3xl"></i>
+  </button>
+
+  <img id="mapPreview" src="https://maps.googleapis.com/maps/api/staticmap?center=24.8607,67.0011&zoom=13&size=600x300&maptype=roadmap&markers=color:red%7C24.8607,67.0011&key=YOUR_API_KEY" alt="Map" class="map-img"/>
+</div>
+
+<div class="bg-gray-100 rounded-tl-[60px] rounded-tr-[60px] h-4 w-full">
+<div class="flex justify-center my-0.1">
+  <div class="w-12 h-1 bg-gray-400 rounded-full"></div>
+</div>
+
+<!-- PAGE 1: PICKUP -->
+<div id="page1" class="page active p-3 overflow-y-auto">
+  <div class="flex items-center justify-between">
+    <h1 id="restaurantDisplay" class="text-lg font-extrabold my-0">Foodinn - SMCHS</h1>
+    <button class="w-12 h-12 rounded-full border border-pink-200 flex items-center justify-center text-pink-600 hover:bg-pink-50">
+      <i class="fas fa-phone-alt fa-lg"></i>
+    </button>
+  </div>
+  
+  <p class="text-sm font-medium">Go to pickup ● Arrive in 1 min</p>
+  <p class="text-sm text-gray-500 mb-3">1 order for pickup</p>
+
+  <hr class="w-full border-t-2 border-gray-200 my-1" />
+
+  <div class="px-2 mt-3 pb-1 text-xs text-gray-700 leading-5">
+    <div class="flex space-x-2">
+      <i class="fas fa-map-marker-alt fa-lg mt-1 text-gray-500"></i>
+      <div>
+        <p class="text-sm text-gray-500 mb-3" id="restaurantAddressDisplay"> plot 7c block 2 karachi </p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="w-full border-t border-gray-200 my-4" />
+
+  <div class="p-2">
+    <h1 class="text-sm font-bold mb-3">
+      <span class="inline-block px-2.5 py-1 rounded-lg bg-green-100 text-green-600 font-bold text-sm transform transition duration-300 hover:scale-105">
+        Ready
+      </span>
+    </h1>
+  </div>
+
+  <div onclick="openCodePopup()" class="border-2 border-pink-200 rounded-md w-32 p-3 flex justify-between items-center mb-3 cursor-pointer hover:bg-pink-50 transition">
+    <span id="orderIdDisplay1" class="text-xl font-extrabold">#5718</span>
+    <i class="fas fa-external-link-alt text-pink-600"></i>
+  </div>
+
+  <div class="flex items-center gap-1 my-6">
+    <div id="codeDisplay1" class="text-sm font-bold">vc4l-2527-axw4-#5718</div>
+    <div id="customerDisplay" class="text-sm font-bold my-0">IMRAN SIDDIQUI</div>
+  </div>
+
+  <div class="pb-1 mb-2 flex justify-between items-center text-sm font-bold items-toggle" onclick="toggleItems()">
+    <span><span id="itemsCountDisplay">2</span> Items <i class="fas fa-chevron-down text-pink-600 ml-2"></i></span>
+  </div>
+
+  <hr class="border-t-2 border-gray-200 my-3" />
+
+  <div id="itemsDisplay1" class="hidden text-sm mb-6 space-y-4">
+    <div class="flex justify-between my-2">
+      <span>1 Mid Night Deal</span>
+      <span>610 PKR</span>
+    </div>
+    <div class="flex justify-between my-4">
+      <span>1 Crispy Hot Fries - Regular Fries</span>
+      <span>340 PKR</span>
+    </div>
+  </div>
+
+  <div class="text-center border rounded-lg p-0.5 mt-8">
+    <p class="text-sm mb-6">Thanks for your feedback</p>
+    <div class="flex justify-center">
+      <div class="w-12 h-12 rounded-full bg-[#8a9ac9] flex items-center justify-center">
+        <svg class="w-8 h-8" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="32" fill="#8a9ac9"/>
+          <path d="M16 32L28 44L48 20" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <hr class="h-4 bg-gray-200 my-2 border-t-4" />
+
+  <button 
+    onclick="showPage2()" 
+    class="w-full mt-1 bg-pink-600 text-white font-bold py-4 rounded-[10px]"
+  >
+    Confirm pickup
+  </button>
+</div>
+
+<!-- PAGE 2: CONFIRMATION -->
+<div id="page2" class="overlay hidden flex items-center justify-center p-2 text-center page2-overlay">
+  <div class="bg-gray-100 p-6 rounded shadow-lg w-full max-w-sm z-30">
+    <h2 class="text-xl font-extrabold mb-2">Do you Confirm</h2>
+    <p class="text-xl font-extrabold mb-2">Order <span id="orderIdDisplay2">#5718</span> - pickup?</p>
+    <button onclick="goToPage3()" class="bg-pink-600 text-white text-xl w-full py-3 rounded-[10px] mb-2">Confirm pickup</button>
+    <button onclick="closePage2()" class="text-pink-600 text-xl">Skip</button>
+  </div>
+</div>
+
+<!-- PAGE 3: DROP-OFF -->
+<div id="page3" class="page p-1 overflow-y-auto">
+  <div class="page3-container">
+    <div class="page3-header">
+      <h1 class="page3-customer my-0" id="customerDisplay2">IMRAN SIDDIQUI</h1>
+      <button class="page3-phone">
+        <i class="fas fa-phone-alt"></i>
+      </button>
+    </div>
+    
+    <p class="text-sm  font-bold">Go to customer ● Arrive in 3 min</p>
+    <p class="text-sm text-gray-900 font-sm">
+    <span id="orderId-orderCodeDisplay3">#5718 ● vc4l-2527-axw4</span>
+    
+    <hr class="border-t-4 border-gray-200 my-1" />
+    
+    <div class="page3-address">
+      <div class="flex space-x-2">
+        <i class="fas fa-map-marker-alt mt-1 text-gray-500"></i>
+        <div>
+          <p id="customerAddressDisplay">5th Back Alley J 12 block 2 PECHS school, near Norani Kabab</p>
+        </div>
+      </div>
+    </div>
+    
+    <hr class="border-t-2 border-gray-200 my-3" /> 
+    
+    <div class="page3-order-info">
+      <p class="page3-order-code my-2">
+        <span id="codeDisplay3">vc4l-2527-axw4</span>
+      </p>
+      <p class="page3-restaurant my-4 my-0" id="restaurantDisplay2">Food Inn - SMCHS</p>
+      
+      <div class="page3-items-toggle" onclick="toggleDropItems()">
+        <span><span id="itemsCountDisplay2">2</span> Items <i class="fas fa-chevron-down text-pink-600 ml-2"></i></span>
+      </div>
+      
+      <hr class="border-t-2 border-gray-200 my-4" />
+      
+      <div id="itemsDisplay2" class="hidden text-sm mb-3 space-y-4">
+        <div class="flex justify-between my-2">
+          <span>1 Mid Night Deal</span>
+          <span>610 PKR</span>
+        </div>
+        <div class="flex justify-between my-4">
+          <span>1 Crispy Hot Fries - Regular Fries</span>
+          <span>340 PKR</span>
+        </div>
+      </div>
+      
+      <div class="page3-payment flex items-start my-8">
+        <div>
+          <p>Payment</p>
+          <p>Collect cash <span class="font-bold text-md ml-28" id="paymentDisplay">1,940 PKR</span></p>
+        </div>
+      </div>
+    </div>
+    
+    <hr class="h-4 bg-gray-100 my-4 border-t-4" />
+    
+    <div class="bg-white min-f-screen p-0 max-w-md mx-auto">
+    <!-- Total Payment Section -->
+    <div class="flex items-start relative pb-2">
+    <!-- Green Check Icon + Vertical Line -->
+    <div class="flex flex-col items-center">
+    <div class="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-white z-10">
+    <i class="fas fa-check text-xs"></i>
+    </div>
+    <!-- Vertical line -->
+    <div class="w-px bg-gray-300" style="height: 110px;"></div>
+    </div>
+    
+    <div class="ml-3 flex-1">
+    <div class="flex justify-between">
+    <span class="font-semibold text-base">Total payment</span>
+    <button class="text-pink-600 text-lg font-medium">Edit</button>
+    </div>
+    
+    <span class="page3-amount" id="amountDisplay">PKR 1,940</span>
+    <p class="text-gray-600 text-sm my-4">Collect cash from customer</p>
+    <button class="text-pink-600 text-sm font-semibold mt-1">I don't have change</button>
+    </div>
+    </div>
+    
+    <!-- Proof of Drop-Off Section -->
+    <div class="flex items-start relative">
+    <!-- Pink Heart Icon + Vertical Line -->
+    <div class="flex flex-col items-center">
+    <div class="w-6 h-6 border border-pink-200 bg-white rounded-full flex items-center justify-center text-gray-500 z-10">
+    <i class="fas fa-check text-xs"></i>
+    </div>
+    <!-- Vertical line under heart -->
+    <div class="w-px bg-gray-300" style="height: 120px;"></div>
+    </div>
+    
+    <div class="ml-3 flex-1">
+    <p class="font-semibold text-base">Proof of drop-Off</p>
+    <p class="text-gray-600 text-sm mb-3">
+    You're far away from the customer's location. Please provide proof of dropoff.
+    </p>
+    <!-- File Input -->
+    <input type="file" id="proofInput" accept="image/*" class="hidden" onchange="handleProofUpload()">
+    <button onclick="document.getElementById('proofInput').click()" 
+    class="w-full border-2 border-pink-100 text-pink-500 font-extrabold py-3 rounded-lg flex items-center justify-center gap-2">
+    <i class="fas fa-camera"></i> Add photo
+    </button>
+    <img id="proofImage" class="proof-image" style="display: none;">
+    </div>
+    </div>
+    
+    <!-- Confirm Button -->
+    <button id="deliveredBtn" class="w-full bg-gray-200 text-gray-500 font-bold py-4 rounded-lg mt-4" disabled
+    onclick="showDeliveryComplete()">
+    Confirm drop-off
+    </button>
+    </div>
+  </div>
+</div>
+
+<!-- DELIVERY COMPLETE CONFIRMATION -->
+<div id="deliveryComplete" class="overlay hidden flex items-center justify-center p-4 text-center">
+  <div class="bg-pink-700 p-16 rounded shadow-lg w-full max-w-sm z-30">
+    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-check text-green-500 text-2xl"></i>
+    </div>
+    <h2 class="text-xl font-bold mb-2">Delivery Complete!</h2>
+    <p class="text-xl mb-6">Order <span id="orderIdDisplay4">#5718</span> has been delivered successfully.</p>
+    <button onclick="closeDeliveryComplete()" class="bg-white text-gray-700 w-full py-2 rounded">Done</button>
+  </div>
+</div>
+
+<!-- ORDER HISTORY (Editable) -->
+<div id="orderHistory" class="full-screen-page">
+  <div class="p-4">
+    <h2 class="text-lg font-bold mb-4">Edit Order History</h2>
+    <label class="block mb-2">Restaurant:
+      <input id="restaurantInput" type="text" class="border p-2 w-full rounded" value="Kababjees Fried Chicken - SMCHS"/>
+    </label>
+    <label class="block mb-2">Order ID:
+      <input id="orderIdInput" type="text" class="border p-2 w-full rounded" value="#5718"/>
+    </label>
+    <label class="block mb-2">Code:
+      <input id="codeInput" type="text" class="border p-2 w-full rounded" value="vc4l-2527-axw4"/>
+    </label>
+    <label class="block mb-2">Customer:
+      <input id="customerInput" type="text" class="border p-2 w-full rounded" value="IMRAN SIDDIQUI"/>
+    </label>
+    <label class="block mb-2">Restaurant Address:
+      <textarea id="restaurantAddressInput" class="border p-2 w-full rounded">Plot 7c Karachi first floor</textarea>
+    </label>
+    <label class="block mb-2">Customer Address:
+      <textarea id="customerAddressInput" class="border p-2 w-full rounded">5th Back Alley J 12 block 2 PECHS school, near Norani Kabab</textarea>
+    </label>
+    
+    <label class="block mb-2">Items:</label>
+    <div id="itemsContainer">
+      <div class="item-input-row">
+        <input type="text" placeholder="Item name" class="item-name" value="1 Mid Night Deal">
+        <input type="text" placeholder="Price" class="item-price" value="610 PKR">
+        <button onclick="removeItem(this)" class="bg-red-500">×</button>
+      </div>
+      <div class="item-input-row">
+        <input type="text" placeholder="Item name" class="item-name" value="1 Crispy Hot Fries - Regular Fries">
+        <input type="text" placeholder="Price" class="item-price" value="340 PKR">
+        <button onclick="removeItem(this)" class="bg-red-500">×</button>
+      </div>
+    </div>
+    <button onclick="addItem()" class="add-item-btn">+ Add Item</button>
+    
+    <label class="block mb-4">Total Amount:
+      <input id="amountInput" type="text" class="border p-2 w-full rounded" value="PKR 1,940.00"/>
+    </label>
+    <button onclick="saveOrder()" class="bg-pink-600 text-white w-full py-2 rounded">Save</button>
+  </div>
+</div>
+
+<!-- PROFILE PAGE -->
+<div id="profilePage" class="full-screen-page">
+  <div class="max-w-md mx-auto border-l-4 border-pink-600 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="profile-header">
+      <button onclick="hideFullScreen('profilePage')" class="profile-back-btn">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <h1 class="font-bold text-lg text-black">Profile</h1>
+    </header>
+
+    <!-- Profile Info -->
+    <section class="flex flex-col items-center py-8 border-b border-gray-200" id="profile-section">
+      <div class="w-24 h-24 rounded-full bg-pink-200 flex items-center justify-center mb-4">
+        <img alt="Profile image of a yellow cheetah wearing a pink helmet and orange collar" class="rounded-full" height="96" id="profile-image-display" src="https://storage.googleapis.com/a1aa/image/52a5e418-c001-4371-d859-ebde785de301.jpg" width="96"/>
+      </div>
+      <p class="font-bold text-black text-lg" id="rider-name-display">Nadeem Ali .</p>
+      <p class="text-gray-800 font-semibold mt-1" id="rider-id-display">
+        ID <span class="font-bold">2109660</span>
+      </p>
+    </section>
+    
+    <!-- Editable Account Section -->
+    <section class="hidden flex flex-col items-center py-8 border-b border-gray-200 px-6" id="account-section">
+      <div class="w-24 h-24 rounded-full bg-pink-200 flex items-center justify-center mb-4 relative">
+        <img alt="Profile image of a yellow tiger wearing a pink helmet and orange collar" class="rounded-full" height="96" id="profile-image-edit" src="https://storage.googleapis.com/a1aa/image/2bd99047-41d7-4f96-161b-ada212b864f5.jpg" width="96"/>
+        <label for="image-upload" class="absolute bottom-0 right-0 bg-pink-600 rounded-full p-1 cursor-pointer border-2 border-white" title="Upload rider image">
+          <i class="fas fa-plus text-white text-sm"></i>
+          <input accept="image/*" class="hidden" id="image-upload" type="file" onchange="handleImageUpload(event)"/>
+        </label>
+      </div>
+      <label class="w-full mb-3">
+        <span class="block font-bold text-black text-lg mb-1">Rider Name</span>
+        <input aria-label="Rider Name" class="w-full border border-gray-300 rounded-md px-3 py-2 text-black text-lg font-bold" id="rider-name-input" type="text" value="Nadeem Ali"/>
+      </label>
+      <label class="w-full mb-3">
+        <span class="block font-semibold text-gray-800 text-base mb-1">Rider ID</span>
+        <input aria-label="Rider ID" class="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-800 font-semibold" id="rider-id-input" type="text" value="2109660"/>
+      </label>
+      <label class="w-full mb-3">
+        <span class="block font-semibold text-gray-800 text-base mb-1">Batch</span>
+        <input aria-label="Batch" class="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-800 font-semibold" id="rider-batch-input" type="text" value="5"/>
+      </label>
+      <button aria-label="Save Profile" class="mt-4 bg-pink-600 text-white font-semibold rounded-md px-6 py-2" onclick="saveProfile()">
+        Save
+      </button>
+    </section>
+    
+    <!-- Keep your profile up to date -->
+    <section class="px-6 py-4 border-b border-gray-200">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-black text-base">Keep your profile up to date</h2>
+        <div aria-label="Information" class="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center text-xs font-semibold cursor-pointer">
+          i
+        </div>
+      </div>
+      <!-- Address -->
+      <button aria-label="Address" class="w-full flex items-center justify-between py-3 border-b border-gray-200" type="button">
+        <div>
+          <p class="font-semibold text-black text-sm mb-1">Address</p>
+          <span class="inline-block bg-orange-300 text-orange-800 text-xs font-semibold rounded-md px-2 py-1 select-none">
+            Missing information
+          </span>
+        </div>
+        <i class="fas fa-chevron-right text-black"></i>
+      </button>
+      <!-- Driver license -->
+      <button aria-label="Driver license" class="w-full flex items-center justify-between py-3 border-b border-gray-200" type="button">
+        <div>
+          <p class="font-semibold text-black text-sm mb-1">Driver license</p>
+          <span class="inline-block bg-red-600 text-white text-xs font-semibold rounded-md px-2 py-1 select-none">
+            Expired
+          </span>
+        </div>
+        <i class="fas fa-chevron-right text-black"></i>
+      </button>
+    </section>
+    
+    <!-- Other sections -->
+    <section class="px-6 py-4 space-y-4">
+      <button aria-controls="account-section" aria-expanded="false" aria-label="Account" class="w-full flex items-center justify-between border-b border-gray-200 pb-3" id="account-btn" onclick="toggleAccountEdit()" type="button">
+        <p class="font-semibold text-black text-sm">Account</p>
+        <i class="fas fa-chevron-right text-black"></i>
+      </button>
+      <button aria-label="Vehicles" class="w-full flex items-center justify-between border-b border-gray-200 pb-3" type="button">
+        <p class="font-semibold text-black text-sm">Vehicles</p>
+        <i class="fas fa-chevron-right text-black"></i>
+      </button>
+      <button aria-label="Id card" class="w-full flex items-center justify-between border-b border-gray-200 pb-3" type="button">
+        <p class="font-semibold text-black text-sm">Id card</p>
+        <i class="fas fa-chevron-right text-black"></i>
+      </button>
+    </section>
+  </div>
+</div>
+
+<!-- INBOX PAGE -->
+<div id="inboxPage" class="full-screen-page">
+  <!-- Header -->
+  <header class="inbox-header">
+    <button onclick="hideFullScreen('inboxPage')" class="inbox-back-btn">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <h1 class="font-semibold text-base">Inbox</h1>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="inbox-tabs">
+    <button class="inbox-tab active" aria-current="page">
+      All messages (24)
+    </button>
+    <button class="inbox-tab">
+      To do (13)
+    </button>
+    <button class="inbox-tab">
+      Alerts (19)
+    </button>
+    <button class="inbox-tab">
+      Promotion (6)
+    </button>
+  </nav>
+
+  <!-- Content -->
+  <main class="px-4 pt-4">
+    <!-- All messages header -->
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-lg">All messages</h2>
+      <span class="bg-gray-200 text-gray-900 text-sm font-semibold rounded-full px-3 py-1">
+        24 Unread
+      </span>
+      <button aria-label="Search" class="ml-3 text-black text-xl">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+
+    <!-- Message 1 -->
+    <article class="mb-6">
+      <div class="flex justify-between items-start">
+        <h3 class="font-semibold text-base flex items-center gap-1">
+          <span>⚠️</span> Low Acceptance Rate <span>⚠️</span>
+        </h3>
+        <time class="text-xs text-gray-600">10/01/25</time>
+      </div>
+      <p class="text-gray-500 text-sm mt-1 leading-tight">
+        Hi Hero., Hamne note kiya hai ke aap kay acceptance rate mein kaafi kami aayi hai, kyun kay aap ne apn...
+      </p>
+      <div class="flex gap-2 mt-2">
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">Compliance</span>
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">To do</span>
+      </div>
+    </article>
+
+    <!-- Message 2 -->
+    <article class="mb-6 border-l-4 border-pink-600 pl-3">
+      <div class="flex justify-between items-start">
+        <h3 class="font-bold text-base truncate max-w-[80%]">
+          Apna Acceptance Rate Healthy ...
+        </h3>
+        <time class="text-xs text-gray-600 font-semibold">19/08/25</time>
+      </div>
+      <p class="text-gray-700 text-sm mt-1 leading-tight">
+        Hi Hero., Hamne notice kiya hai ke aap ka acceptance rate recent kuch orders miss ya decline karne ...
+      </p>
+      <div class="flex gap-2 mt-2">
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">Compliance</span>
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">To do</span>
+      </div>
+    </article>
+
+    <!-- Message 3 -->
+    <article class="mb-6 border-b border-gray-200 pb-4">
+      <div class="flex justify-between items-start">
+        <h3 class="text-base truncate max-w-[80%] font-normal">
+          Earning Week 20 (27th June - 19th Augt...
+        </h3>
+        <time class="text-xs text-gray-600">01/09/25</time>
+      </div>
+      <p class="text-gray-500 text-sm mt-1 leading-tight">
+        Rider: Hero., 1112013 • Total Order Amount: Rs. 13,020 5.50 • Target Bonus Amount: Rs. 7090 • Fuel Bonus: Rs. 720*...
+      </p>
+      <div class="flex gap-2 mt-2">
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">News</span>
+      </div>
+    </article>
+
+    <!-- Message 4 -->
+    <article class="mb-6 border-b border-gray-200 pb-4">
+      <div class="flex justify-between items-start">
+        <h3 class="font-semibold text-base">
+          COD Suspension End 🎉
+        </h3>
+        <time class="text-xs text-gray-600">1/09/25</time>
+      </div>
+      <p class="text-gray-500 text-sm mt-1 leading-tight">
+        Cash balance jama karwane ki waja se aap ki suspension hatt gayi hai, ab aap shift pick kar ke kaam karein.
+      </p>
+      <div class="flex gap-2 mt-2">
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">Compliance</span>
+        <span class="bg-gray-200 text-gray-900 text-xs font-semibold rounded-md px-3 py-1">To do</span>
+      </div>
+    </article>
+
+    <!-- Message 5 -->
+    <article class="mb-6 border-b border-gray-200 pb-4">
+      <div class="flex justify-between items-start">
+        <h3 class="font-semibold text-base">
+          Selfie Verification: Important Update
+        </h3>
+        <time class="text-xs text-gray-600">25/06/25</time>
+      </div>
+      <p class="text-gray-500 text-sm mt-1 leading-tight">
+        Rider.,aap selfie verification ko bypass kar rahy hai n jiski waja se humein aap ki verification masool nahi ...
+      </p>
+    </article>
+  </main>
+</div>
+
+<!-- WALLET PAGE -->
+<div id="walletPage" class="full-screen-page">
+  <div class="max-w-md mx-auto min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="wallet-header">
+      <button onclick="hideFullScreen('walletPage')" class="wallet-back-btn">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <h1 class="font-semibold text-lg">Wallet</h1>
+    </header>
+
+    <main class="flex-grow px-5 pt-5 pb-8">
+      <!-- Current balance section -->
+      <section>
+        <p class="font-semibold text-gray-800 text-base mb-1">Current balance</p>
+        <p class="font-extrabold text-3xl leading-[1.1] mb-1">PKR 874.90</p>
+        <p class="text-gray-600 text-sm mb-4">Balance including queued: PKR 874.90</p>
+
+        <div class="flex items-center space-x-3 mb-6">
+          <div class="flex-shrink-0 text-gray-600 text-lg">
+            <i class="fas fa-exclamation-circle"></i>
+          </div>
+          <div class="flex-grow">
+            <input
+              type="range"
+              min="0"
+              max="7000"
+              value="0"
+              disabled
+              class="w-full cursor-default"
+              aria-label="Balance slider"
+            />
+          </div>
+          <div class="flex-shrink-0 text-gray-400 text-lg">
+            <i class="fas fa-ban"></i>
+          </div>
+        </div>
+        <p class="text-gray-400 text-xs text-right -mt-4">-PKR 7000.00</p>
+      </section>
+
+      <hr class="border-gray-200 mb-6" />
+
+      <!-- Recent transactions -->
+      <section>
+        <h2 class="font-extrabold text-lg mb-4">Recent transactions</h2>
+
+        <article class="mb-4 pb-4 border-b border-gray-200">
+          <p class="font-semibold text-gray-900 flex justify-between">
+            <span>Collection</span>
+            <span>-PKR 812.99</span>
+          </p>
+          <p class="text-gray-700 text-sm mt-1">04/5 · 22:37</p>
+        </article>
+
+        <article class="mb-4 pb-4 border-b border-gray-200">
+          <p class="font-semibold text-gray-900 flex justify-between">
+            <span>Cash out</span>
+            <span>PKR 1,906.00</span>
+          </p>
+          <p class="text-gray-700 text-sm mt-1">04/5 · 21:36</p>
+        </article>
+
+        <article class="mb-4 pb-4 border-b border-gray-200">
+          <p class="font-semibold text-gray-900 flex justify-between">
+            <span>Collection</span>
+            <span>-PKR 1,207.98</span>
+          </p>
+          <p class="text-gray-700 text-sm mt-1">04/5 · 18:42</p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="border-t border-gray-200">
+      <nav class="flex flex-col divide-y divide-gray-200">
+        <a
+          href="#"
+          class="flex items-center justify-between px-5 py-4 text-gray-900 font-semibold hover:bg-gray-50"
+        >
+          <div class="flex items-center space-x-3">
+            <i class="fas fa-receipt text-lg"></i>
+            <span>Transactions</span>
+          </div>
+          <i class="fas fa-chevron-right text-pink-600"></i>
+        </a>
+
+        <a
+          href="#"
+          class="flex items-center justify-between px-5 py-4 text-gray-900 font-semibold hover:bg-gray-50"
+        >
+          <div class="flex items-center space-x-3">
+            <i class="far fa-clock text-lg"></i>
+            <span>Queued transactions</span>
+          </div>
+          <i class="fas fa-chevron-right text-pink-600"></i>
+        </a>
+
+        <a
+          href="#"
+          class="flex items-center justify-between px-5 py-4 text-gray-900 font-semibold hover:bg-gray-50"
+        >
+          <div class="flex items-center space-x-3">
+            <i class="fas fa-dollar-sign text-lg"></i>
+            <span>Payments</span>
+          </div>
+          <i class="fas fa-external-link-alt text-pink-600"></i>
+        </a>
+      </nav>
+    </footer>
+  </div>
+</div>
+
+<!-- ORDER CODE MODAL -->
+<div id="orderCodeModal" class="order-code-modal" style="display:none;">
+  <div class="order-code-box">
+    <button onclick="closeOrderCodeModal()" class="close-modal-btn">
+      <i class="fas fa-times"></i>
+    </button>
+    <div id="orderCodeText" class="order-code-text">vc4l-2527-axw4</div>
+  </div>
+</div>
+
+<!-- MAP EDIT CONTAINER -->
+<div class="map-edit-container" id="mapEditContainer">
+  <div class="map-edit-header">
+    <button onclick="hideMapEdit()" class="text-pink-600">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+    <h2>Edit Map Location</h2>
+    <div></div>
+  </div>
+  
+  <div class="map-edit-option">
+    <input type="file" id="mapImageUpload" accept="image/*" class="hidden" onchange="updateMapImage(event)">
+    <button onclick="document.getElementById('mapImageUpload').click()" class="bg-blue-400 my-8  border-2 border-pink-600">
+      <i class="fas fa-upload mr-2"></i> Upload Map Image
+    </button>
+  </div>
+</div>
+
+<script>
+  // Toggle functions
+  function toggleItems() {
+    const items = document.getElementById('itemsDisplay1');
+    const arrow = document.querySelector('#page1 .items-toggle i');
+    items.classList.toggle('hidden');
+    arrow.classList.toggle('fa-chevron-down');
+    arrow.classList.toggle('fa-chevron-up');
+  }
+
+  function toggleDropItems() {
+    const items = document.getElementById('itemsDisplay2');
+    const arrow = document.querySelector('#page3 .page3-items-toggle i');
+    items.classList.toggle('hidden');
+    arrow.classList.toggle('fa-chevron-down');
+    arrow.classList.toggle('fa-chevron-up');
+  }
+
+  // Sidebar functions
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+  }
+
+  // Full screen page functions
+  function showFullScreen(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('mapPreview').style.display = 'none';
+    document.getElementById(pageId).classList.add('active');
+    if (pageId !== 'nill') {
+      toggleSidebar();
+    }
+  }
+
+  function hideFullScreen(pageId) {
+    document.getElementById(pageId).classList.remove('active');
+    document.getElementById('mapPreview').style.display = 'block';
+    document.getElementById('page1').classList.add('active');
+  }
+
+  // Page navigation functions
+  function showPage2() {
+    document.getElementById('page2').classList.remove('hidden');
+  }
+
+  function closePage2() {
+    document.getElementById('page2').classList.add('hidden');
+  }
+
+  function goToPage3() {
+    document.getElementById('page1').classList.remove('active');
+    document.getElementById('page2').classList.add('hidden');
+    document.getElementById('page3').classList.add('active');
+    // Prevent going back to previous pages
+    document.getElementById('page3').style.pointerEvents = 'auto';
+    document.getElementById('page3').style.touchAction = 'auto';
+    document.getElementById('page3').style.overflow = 'auto';
+    document.getElementById('page3').style.position = 'relative';
+  }
+
+  function showDeliveryComplete() {
+    if (!document.getElementById('proofImage').src) {
+      alert('Please upload proof of drop-off first');
+      return;
+    }
+    document.getElementById('deliveryComplete').classList.remove('hidden');
+    // Auto logout after 3 seconds
+    setTimeout(() => {
+      alert('You have been logged out');
+      // Here you would typically redirect to login page
+      // window.location.href = '/logout';
+    }, 3000);
+  }
+
+  function closeDeliveryComplete() {
+    document.getElementById('deliveryComplete').classList.add('hidden');
+    document.getElementById('page3').classList.remove('active');
+    document.getElementById('page1').classList.add('active');
+  }
+
+  // Order code modal
+  function openCodePopup() {
+    document.getElementById('orderCodeText').textContent = document.getElementById('codeDisplay1').textContent;
+    document.getElementById('orderCodeModal').classList.add('active');
+  }
+
+  function closeOrderCodeModal() {
+    document.getElementById('orderCodeModal').classList.remove('active');
+  }
+
+  // Profile page functions
+  function toggleAccountEdit() {
+    const accountSection = document.getElementById("account-section");
+    const profileSection = document.getElementById("profile-section");
+    const accountBtn = document.getElementById("account-btn");
+    if (accountSection.classList.contains("hidden")) {
+      accountSection.classList.remove("hidden");
+      profileSection.classList.add("hidden");
+      accountBtn.setAttribute("aria-expanded", "true");
+    } else {
+      accountSection.classList.add("hidden");
+      profileSection.classList.remove("hidden");
+      accountBtn.setAttribute("aria-expanded", "false");
+    }
+  }
+  
+  function saveProfile() {
+    const nameInput = document.getElementById("rider-name-input");
+    const idInput = document.getElementById("rider-id-input");
+    const batchInput = document.getElementById("rider-batch-input");
+    const nameDisplay = document.getElementById("rider-name-display");
+    const idDisplay = document.getElementById("rider-id-display");
+    const profileSection = document.getElementById("profile-section");
+    const accountSection = document.getElementById("account-section");
+    const accountBtn = document.getElementById("account-btn");
+    const profileImageEdit = document.getElementById("profile-image-edit");
+    const profileImageDisplay = document.getElementById("profile-image-display");
+    const sidebarRiderName = document.getElementById("sidebarRiderName");
+    const sidebarRiderBatch = document.getElementById("sidebarRiderBatch");
+
+    // Update displayed name and ID
+    nameDisplay.textContent = nameInput.value;
+    idDisplay.innerHTML = 'ID <span class="font-bold">' + idInput.value + "</span>";
+    sidebarRiderName.textContent = nameInput.value;
+    sidebarRiderBatch.textContent = batchInput.value;
+
+    // Update profile image on front page
+    profileImageDisplay.src = profileImageEdit.src;
+
+    // Switch back to profile view
+    accountSection.classList.add("hidden");
+    profileSection.classList.remove("hidden");
+    accountBtn.setAttribute("aria-expanded", "false");
+  }
+  
+  function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = document.getElementById("profile-image-edit");
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Chat functions
+  function openChat() {
+    // Set chat customer name and order code from current order
+    document.getElementById('chatCustomerName').textContent = document.getElementById('customerDisplay').textContent;
+    document.getElementById('chatOrderCode').textContent = document.getElementById('codeDisplay1').textContent;
+    
+    document.getElementById('chatContainer').classList.add('active');
+  }
+  
+  function closeChat() {
+    document.getElementById('chatContainer').classList.remove('active');
+  }
+  
+  function sendQuickReply(text) {
+    const messages = document.getElementById('chatMessages');
+    const messageEl = document.createElement('div');
+    messageEl.className = 'message-sent';
+    messageEl.textContent = text;
+    messages.appendChild(messageEl);
+    messages.scrollTop = messages.scrollHeight;
+  }
+  
+  function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (text) {
+      sendQuickReply(text);
+      input.value = '';
+    }
+  }
+
+  // Help Center functions
+  function openHelpCenter() {
+    document.getElementById('helpCenterPage').classList.add('active');
+  }
+  
+  function closeHelpCenter() {
+    document.getElementById('helpCenterPage').classList.remove('active');
+  }
+
+  // Map functions
+  function rotateRefresh() {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('rotate');
+    setTimeout(() => {
+      btn.classList.remove('rotate');
+    }, 1000);
+  }
+
+  function toggleZoom() {
+    const mapImg = document.getElementById('mapPreview');
+    if (mapImg.style.transform === 'scale(1.5)') {
+      mapImg.style.transform = 'scale(1)';
+    } else {
+      mapImg.style.transform = 'scale(1.5)';
+    }
+  }
+
+  function handleProofUpload() {
+    const file = document.getElementById('proofInput').files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const proofImage = document.getElementById('proofImage');
+        proofImage.src = e.target.result;
+        proofImage.style.display = 'block';
+        
+        // Enable delivered button
+        const btn = document.getElementById('deliveredBtn');
+        btn.classList.remove('bg-gray-200', 'text-gray-500');
+        btn.classList.add('bg-pink-700', 'text-white');
+        btn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  // Order management functions
+  function saveOrder() {
+    // Get all input values
+    const restaurant = document.getElementById('restaurantInput').value;
+    const orderId = document.getElementById('orderIdInput').value;
+    const code = document.getElementById('codeInput').value;
+    const customer = document.getElementById('customerInput').value;
+    const restaurantAddress = document.getElementById('restaurantAddressInput').value;
+    const customerAddress = document.getElementById('customerAddressInput').value;
+    const amount = document.getElementById('amountInput').value;
+    
+    // Get items
+    const itemRows = document.querySelectorAll('#itemsContainer .item-input-row');
+    const items = [];
+    itemRows.forEach(row => {
+      const name = row.querySelector('.item-name').value;
+      const price = row.querySelector('.item-price').value;
+      items.push({name, price});
+    });
+    
+    // Update all display elements
+    document.querySelectorAll('#restaurantDisplay, #restaurantDisplay2').forEach(el => el.textContent = restaurant);
+    document.querySelectorAll('#orderIdDisplay1, #orderIdDisplay2, #orderIdDisplay4').forEach(el => el.textContent = orderId);
+    document.querySelectorAll('#codeDisplay1, #codeDisplay3').forEach(el => el.textContent = code);
+    document.querySelectorAll('#customerDisplay, #customerDisplay2, #chatCustomerName').forEach(el => el.textContent = customer);
+    document.getElementById('paymentDisplay').textContent = amount;
+    document.getElementById('amountDisplay').textContent = amount;
+    document.getElementById('restaurantAddressDisplay').textContent = restaurantAddress;
+    document.getElementById('customerAddressDisplay').textContent = customerAddress;
+    
+    // Update items display
+    const itemsDisplay1 = document.getElementById('itemsDisplay1');
+    const itemsDisplay2 = document.getElementById('itemsDisplay2');
+    
+    // Clear existing items
+    itemsDisplay1.innerHTML = '';
+    itemsDisplay2.innerHTML = '';
+    
+    // Add new items
+    items.forEach(item => {
+      const itemEl1 = document.createElement('div');
+      itemEl1.className = 'flex justify-between my-2';
+      itemEl1.innerHTML = `<span>${item.name}</span><span>${item.price}</span>`;
+      itemsDisplay1.appendChild(itemEl1);
+      
+      const itemEl2 = document.createElement('div');
+      itemEl2.className = 'flex justify-between my-2';
+      itemEl2.innerHTML = `<span>${item.name}</span><span>${item.price}</span>`;
+      itemsDisplay2.appendChild(itemEl2);
+    });
+    
+    // Update items count
+    const itemsCount = items.length;
+    document.getElementById('itemsCountDisplay').textContent = itemsCount;
+    document.getElementById('itemsCountDisplay2').textContent = itemsCount;
+    
+    // Hide the order history page
+    hideFullScreen('orderHistory');
+  }
+
+  // Item management functions
+  function addItem() {
+    const container = document.getElementById('itemsContainer');
+    const newRow = document.createElement('div');
+    newRow.className = 'item-input-row';
+    newRow.innerHTML = `
+      <input type="text" placeholder="Item name" class="item-name">
+      <input type="text" placeholder="Price" class="item-price">
+      <button onclick="removeItem(this)" class="bg-red-500">×</button>
+    `;
+    container.appendChild(newRow);
+  }
+  
+  function removeItem(button) {
+    const row = button.parentNode;
+    row.parentNode.removeChild(row);
+  }
+
+  // Logout function
+  function logout() {
+    alert('You have been logged out');
+    // Here you would typically redirect to login page
+    // window.location.href = '/logout';
+  }
+
+  // Map image upload
+  function showMapEdit() {
+    document.getElementById('mapEditContainer').classList.add('active');
+    toggleSidebar();
+  }
+  
+  function hideMapEdit() {
+    document.getElementById('mapEditContainer').classList.remove('active');
+  }
+  
+  function updateMapImage(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById('mapPreview').src = e.target.result;
+      hideMapEdit();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Initialize with 2 items
+  document.getElementById('itemsCountDisplay').textContent = '2';
+  document.getElementById('itemsCountDisplay2').textContent = '2';
+</script>
+</body>
+</html>
